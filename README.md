@@ -202,7 +202,7 @@ They do **not** constitute financial advice or investment recommendations.
 
 ### 🌟 Found This Useful? Leave a Star on GitHub! 🌟
 
-**Made with 📈 by [Ahmed](https://github.com/Ahmed-GoCode) — [Quant-Edge Indicators](https://github.com/Ahmed-GoCode/Quant-Edge-Indicators)**
+**Made with 📈 by [Ahmed](https://github.com/Ahmed-GoCode) & [Wajd Dev](https://github.com/its-wajd) — [Quant-Edge Indicators](https://github.com/Ahmed-GoCode/Quant-Edge-Indicators)***
 
 [![GitHub Stars](https://img.shields.io/github/stars/Ahmed-GoCode/Quant-Edge-Indicators?style=for-the-badge&color=FFD700&logo=github)](https://github.com/Ahmed-GoCode/Quant-Edge-Indicators)
 
