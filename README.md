@@ -34,7 +34,7 @@
 
 ## 🎬 Watch First — Add Any Script in Under 60 Seconds
 
-<video src="assets/how_to_add_scripts.mp4" controls width="100%"></video>
+<video src="https://raw.githubusercontent.com/Ahmed-GoCode/Quant-Edge-Indicators/main/assets/how_to_add_scripts.mp4" controls="controls" width="100%"></video>
 
 > **Instructions:** Open TradingView → Pine Editor → Paste any `.pinescript` code → Click **Add to Chart** ✅
 
