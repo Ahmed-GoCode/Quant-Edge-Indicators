@@ -1,0 +1,109 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+indicator(title="RSI Multi-Layer Entry Indicator (With Position Tracking)", overlay=true)
+
+// --- RSI Settings ---
+rsiPeriod = 14
+rsiOverbought = 70
+rsiOversold = 30
+
+// --- Trade Settings ---
+SL = 3 //(USD , for Gold)
+TP1 = 3
+TP2 = 10
+entryUnits = 5 // 5 usd for gold chart. when we have a buy piosition for examole, and price goes down more than 5, then it is used to open a second layer buy position.
+
+// --- Variables ---
+rsi = ta.rsi(close, rsiPeriod)
+entryPrice = 0.0
+entryDirection = 0 // 1 for buy, -1 for sell
+positionSize = 0 // Tracks the size of the current position
+entryBar = 0 // Bar index of the entry
+positionType = "" // Tracks the type of the current position (e.g., "Long", "Short")
+
+// --- Entry Logic ---
+if (rsi > rsiOverbought and entryDirection == 0)
+    entryPrice := close
+    entryDirection := -1
+    positionSize := 1 // Initial position size (the first position in a row, the first layer.)
+    entryBar := bar_index
+    positionType := "Short"
+    label.new(bar_index, high, "Short Entry", color=color.red, style=label.style_label_down)
+
+if (rsi < rsiOversold and entryDirection == 0)
+    entryPrice := close
+    entryDirection := 1
+    positionSize := 1 // Initial position size (the first position in a row, the first layer.)
+    entryBar := bar_index
+    positionType := "Long"
+    label.new(bar_index, low, "Long Entry", color=color.green, style=label.style_label_up)
+
+// --- Multi-Layer Entry ---
+if (entryDirection != 0)
+    if (entryDirection == 1 and close < entryPrice - entryUnits and positionSize < 2) // Long entry, price moved down
+        positionSize := positionSize + 1
+        label.new(bar_index, low, "Long Entry (Layer 2)", color=color.green, style=label.style_label_up)
+    if (entryDirection == -1 and close > entryPrice + entryUnits and positionSize < 2) // Short entry, price moved up
+        positionSize := positionSize + 1
+        label.new(bar_index, high, "Short Entry (Layer 2)", color=color.red, style=label.style_label_down)
+
+// --- Exit Logic ---
+if (positionType == "Long" and close >= entryPrice + TP1)
+    positionSize := 0 // Reset position size
+    label.new(bar_index, high, "TP1 Long Hit", color=color.red, style=label.style_label_up)
+    entryDirection := 0 // Reset entry direction
+
+if (positionType == "Long" and close >= entryPrice + TP2)
+    positionSize := 0 // Reset position size
+    label.new(bar_index, high, "TP2 Long Hit", color=color.red, style=label.style_label_up)
+    entryDirection := 0 // Reset entry direction
+
+if (positionType == "Long" and close <= entryPrice - SL)
+    positionSize := 0 // Reset position size
+    label.new(bar_index, low, "SL Long Hit", color=color.red, style=label.style_label_up)
+    entryDirection := 0 // Reset entry direction
+
+if (positionType == "Short" and close <= entryPrice - TP1)
+    positionSize := 0 // Reset position size
+    label.new(bar_index, low, "TP1 Short Hit", color=color.green, style=label.style_label_down)
+    entryDirection := 0 // Reset entry direction
+
+if (positionType == "Short" and close <= entryPrice - TP2)
+    positionSize := 0 // Reset position size
+    label.new(bar_index, low, "TP2 Short Hit", color=color.green, style=label.style_label_down)
+    entryDirection := 0 // Reset entry direction
+
+if (positionType == "Short" and close >= entryPrice + SL)
+    positionSize := 0 // Reset position size
+    label.new(bar_index, high, "SL Short Hit", color=color.green, style=label.style_label_down)
+    entryDirection := 0 // Reset entry direction
+
+// --- TP/SL Levels ---
+if (entryDirection != 0)
+    if (entryDirection == 1) // Long
+        var TP1Line = line.new(bar_index, entryPrice + TP1, bar_index, entryPrice + TP1, color=color.green, width=2, style = line.style_dashed) //title="TP1 Long"
+        var TP2Line = line.new(bar_index, entryPrice + TP2, bar_index, entryPrice + TP2, color=color.green, width=2, style = line.style_dashed) //title="TP2 Long"
+        var SLLine = line.new(bar_index, entryPrice - SL, bar_index, entryPrice - SL, color=color.green, width=2, style = line.style_dashed) //title="SL Long"
+    else // Short
+        var TP1Line = line.new(bar_index, entryPrice - TP1, bar_index, entryPrice - TP1, color=color.red, width=2, style=line.style_dashed) //title="TP1 Short"
+        var TP2Line = line.new(bar_index, entryPrice - TP2, bar_index, entryPrice - TP2, color=color.red, width=2, style=line.style_dashed) //title="TP2 Short"
+        var SLLine = line.new(bar_index, entryPrice + TP1, bar_index, entryPrice + TP1, color=color.red, width=2, style=line.style_dashed) //title="SL Short"
+
+// --- Plot RSI ---
+plot(rsi, color=color.blue, linewidth=2, title="RSI")
+hline(rsiOverbought, color=color.red, linestyle=hline.style_dashed)
+hline(rsiOversold, color=color.red, linestyle=hline.style_dashed)
+
+
+//**Explanation of Changes:**
+
+//- **`positionSize`:** Added a variable to track the size of the current position.
+//- **`entryBar`:** Added a variable to store the bar index of the entry.
+//- **`positionType`:** Added a variable to store the type of the current position (e.g., "Long", "Short").
+//- **Tracking Position Size:** 
+//    - `positionSize` is initialized to 1 when a new position is opened.
+//    - It's increased by 1 when a multi-layer entry is triggered.
+//    - It's reset to 0 when the position is closed (TP or SL hit).
+//- **Exit Logic:** The `if` conditions now check for TP1/TP2/SL hits based on the `positionType` and `positionSize` to determine whether the position should be closed.
+//- **Label Updates:** The label text now includes information about the TP/SL hit and the position size.

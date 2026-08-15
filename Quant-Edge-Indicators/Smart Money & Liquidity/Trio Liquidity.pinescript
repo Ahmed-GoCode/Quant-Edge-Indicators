@@ -1,0 +1,51 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+indicator("Liquidity Sweep + Close-Back Confirmation", overlay = true, max_boxes_count = 50, max_labels_count = 50)
+
+// ==== Inputs ====
+swingLookback = input.int(10, "Swing Lookback (bars)", minval = 2)
+showBoxes     = input.bool(true, "Show sweep boxes")
+showLabels    = input.bool(true, "Show Buy/Sell labels")
+buyColor      = input.color(color.new(color.teal, 70), "Buy box color")
+sellColor     = input.color(color.new(color.red, 80), "Sell box color")
+
+// ==== Pattern detection ====
+// confirmation candle = current bar (bar_index), sweep candle = 1 bar back
+sweepLow   = low[1]
+sweepHigh  = high[1]
+
+// swing reference BEFORE the sweep candle: lowest low / highest high over the lookback window, starting 2 bars back
+swingLow  = ta.lowest(low, swingLookback)[2]
+swingHigh = ta.highest(high, swingLookback)[2]
+
+bullSignal = sweepLow < swingLow and close > sweepHigh
+bearSignal = sweepHigh > swingHigh and close < sweepLow
+
+// ==== Plot arrows ====
+plotshape(bullSignal, title = "Buy Signal", style = shape.triangleup,
+     location = location.belowbar, color = color.teal, size = size.small)
+plotshape(bearSignal, title = "Sell Signal", style = shape.triangledown,
+     location = location.abovebar, color = color.red, size = size.small)
+
+// ==== Boxes over the sweep candle ====
+if showBoxes and bullSignal
+    box.new(bar_index[1], sweepHigh, bar_index, sweepLow,
+         border_color = color.teal, bgcolor = buyColor, border_width = 1)
+
+if showBoxes and bearSignal
+    box.new(bar_index[1], sweepHigh, bar_index, sweepLow,
+         border_color = color.red, bgcolor = sellColor, border_width = 1)
+
+// ==== Labels ====
+if showLabels and bullSignal
+    label.new(bar_index, low, "BUY", style = label.style_label_up,
+         color = color.teal, textcolor = color.white, size = size.small, yloc = yloc.belowbar)
+
+if showLabels and bearSignal
+    label.new(bar_index, high, "SELL", style = label.style_label_down,
+         color = color.red, textcolor = color.white, size = size.small, yloc = yloc.abovebar)
+
+// ==== Alerts ====
+alertcondition(bullSignal, title = "Liquidity Sweep Buy", message = "{{ticker}} {{interval}}: Liquidity sweep BUY confirmed at {{close}}")
+alertcondition(bearSignal, title = "Liquidity Sweep Sell", message = "{{ticker}} {{interval}}: Liquidity sweep SELL confirmed at {{close}}")

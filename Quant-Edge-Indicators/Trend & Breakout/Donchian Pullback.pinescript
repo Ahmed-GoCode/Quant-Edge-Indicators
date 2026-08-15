@@ -1,0 +1,51 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("Donchian Pullback Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+length = input.int(20, title="Donchian Channel Period")
+
+// Donchian Channel
+donchianHigh = ta.highest(high, length)
+donchianLow = ta.lowest(low, length)
+donchianMid = (donchianHigh + donchianLow) / 2
+
+// Trend State Tracking
+var bool inBearishTrend = false
+var bool inBullishTrend = false
+
+// Detect channel breakouts to set overall trend bias
+if (low < donchianLow[1])
+    inBearishTrend := true
+    inBullishTrend := false
+
+if (high > donchianHigh[1])
+    inBullishTrend := true
+    inBearishTrend := false
+
+// Variables to prevent multiple re-entries
+var bool shortTaken = false
+var bool longTaken = false
+
+// Entry Conditions
+if (inBearishTrend and not shortTaken and close >= donchianMid)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP/SL Short", from_entry="Short", limit=donchianLow, stop=donchianHigh)
+    shortTaken := true
+    longTaken := false
+
+if (inBullishTrend and not longTaken and close <= donchianMid)
+    strategy.entry("Long", strategy.long)
+    strategy.exit("TP/SL Long", from_entry="Long", limit=donchianHigh, stop=donchianLow)
+    longTaken := true
+    shortTaken := false
+
+// Reset signals when position is flat
+if (strategy.position_size == 0)
+    shortTaken := false
+    longTaken := false
+
+// Visualization
+plot(donchianHigh, title="Donchian High", color=color.red)
+plot(donchianLow, title="Donchian Low", color=color.green)
+plot(donchianMid, title="Donchian Mid", color=color.gray)

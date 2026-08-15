@@ -1,0 +1,77 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+indicator("Fibonacci Auto Buy/Sell Signals", overlay=true)
+
+// Define Fibonacci retracement and extension levels
+retracementLevel1 = 0.236
+retracementLevel2 = 0.382
+retracementLevel3 = 0.5
+retracementLevel4 = 0.618
+extensionLevel1 = 1.618
+extensionLevel2 = 2.618
+
+// Define lookback periods for swing high/low
+lookbackPeriodHigh = 50
+lookbackPeriodLow = 50
+
+// Calculate swing high and swing low for Fibonacci
+swingHigh = ta.highest(high, lookbackPeriodHigh)
+swingLow = ta.lowest(low, lookbackPeriodLow)
+
+// Calculate Fibonacci retracement levels
+fibRetrace1 = swingHigh - (swingHigh - swingLow) * retracementLevel1
+fibRetrace2 = swingHigh - (swingHigh - swingLow) * retracementLevel2
+fibRetrace3 = swingHigh - (swingHigh - swingLow) * retracementLevel3
+fibRetrace4 = swingHigh - (swingHigh - swingLow) * retracementLevel4
+
+// Calculate Fibonacci extension levels
+fibExtension1 = swingLow + (swingHigh - swingLow) * extensionLevel1
+fibExtension2 = swingLow + (swingHigh - swingLow) * extensionLevel2
+
+// Plot Fibonacci retracement levels dynamically
+var line fibLine1 = na
+var line fibLine2 = na
+var line fibLine3 = na
+var line fibLine4 = na
+var line extLine1 = na
+var line extLine2 = na
+
+if bar_index > 1
+    line.delete(fibLine1)
+    line.delete(fibLine2)
+    line.delete(fibLine3)
+    line.delete(fibLine4)
+    line.delete(extLine1)
+    line.delete(extLine2)
+
+    fibLine1 := line.new(x1=bar_index[1], y1=fibRetrace1, x2=bar_index, y2=fibRetrace1, color=color.green, width=1, style=line.style_dotted)
+    fibLine2 := line.new(x1=bar_index[1], y1=fibRetrace2, x2=bar_index, y2=fibRetrace2, color=color.green, width=1, style=line.style_dotted)
+    fibLine3 := line.new(x1=bar_index[1], y1=fibRetrace3, x2=bar_index, y2=fibRetrace3, color=color.green, width=1, style=line.style_dotted)
+    fibLine4 := line.new(x1=bar_index[1], y1=fibRetrace4, x2=bar_index, y2=fibRetrace4, color=color.green, width=1, style=line.style_dotted)
+
+    extLine1 := line.new(x1=bar_index[1], y1=fibExtension1, x2=bar_index, y2=fibExtension1, color=color.red, width=1, style=line.style_dotted)
+    extLine2 := line.new(x1=bar_index[1], y1=fibExtension2, x2=bar_index, y2=fibExtension2, color=color.red, width=1, style=line.style_dotted)
+
+// Define buy and sell signals
+buySignal = ta.crossover(close, fibRetrace4)
+sellSignal = ta.crossunder(close, fibRetrace1)
+
+// Plot buy and sell signals on the chart
+plotshape(series=buySignal, title="Buy Signal", location=location.belowbar, color=color.new(color.green, 0), style=shape.labelup, text="BUY")
+plotshape(series=sellSignal, title="Sell Signal", location=location.abovebar, color=color.new(color.red, 0), style=shape.labeldown, text="SELL")
+
+// Targets and stop-loss
+entryLevel = close
+target1 = fibExtension1
+target2 = fibExtension2
+stopLoss = fibRetrace3
+
+// Display targets and stop-loss on chart
+label.new(bar_index, target1, str.tostring(target1, "#.##"), style=label.style_label_down, color=color.new(color.green, 80))
+label.new(bar_index, target2, str.tostring(target2, "#.##"), style=label.style_label_down, color=color.new(color.green, 80))
+label.new(bar_index, stopLoss, "Stop Loss: " + str.tostring(stopLoss, "#.##"), style=label.style_label_up, color=color.new(color.red, 80))
+
+// Alerts
+alertcondition(buySignal, "Buy Alert", "Buy signal triggered!")
+alertcondition(sellSignal, "Sell Alert", "Sell signal triggered!")

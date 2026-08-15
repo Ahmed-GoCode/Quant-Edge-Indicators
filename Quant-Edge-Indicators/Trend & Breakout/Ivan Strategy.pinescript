@@ -1,0 +1,30 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("Ivan Scherman Pattern - TP/SL", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// Moving Averages
+maLong = ta.sma(close, 200)
+maShort = ta.sma(close, 5)
+
+// Step 1: Three consecutive lower closes under 200 SMA
+cond1 = close[3] > close[2] and close[2] > close[1] and close[3] < maLong[3] and close[2] < maLong[2] and close[1] < maLong[1]
+
+// Step 2: Current close above 5 SMA
+cond2 = close > maShort
+
+// Entry Condition
+entryCondition = cond1 and cond2
+
+// Execute Entry
+if (entryCondition)
+    strategy.entry("IvanBuy", strategy.long)
+
+// Traditional Exit Parameters
+takeProfitPoints = input.float(10.0, title="Take Profit (points)")
+stopLossPoints = input.float(5.0, title="Stop Loss (points)")
+strategy.exit("Exit", from_entry="IvanBuy", profit=takeProfitPoints, loss=stopLossPoints)
+
+// Plot Moving Averages
+plot(maLong, color=color.orange, title="200 SMA")
+plot(maShort, color=color.green, title="5 SMA")

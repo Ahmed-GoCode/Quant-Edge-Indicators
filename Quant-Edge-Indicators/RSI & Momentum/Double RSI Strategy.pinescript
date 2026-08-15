@@ -1,0 +1,50 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("Customizable Dual-Timeframe RSI Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === User Inputs ===
+// RSI 1 (Higher Timeframe)
+rsi1_tf = input.timeframe("15", "Higher RSI Timeframe")
+rsi1_len = input.int(14, "Higher RSI Period", minval=1)
+
+// RSI 2 (Lower Timeframe)
+rsi2_tf = input.timeframe("1", "Lower RSI Timeframe")
+rsi2_len = input.int(7, "Lower RSI Period", minval=1)
+
+// Customizable Levels
+buy_entry_level = input.int(30, "Buy Entry Level", minval=1, maxval=100)
+sell_entry_level = input.int(70, "Sell Entry Level", minval=1, maxval=100)
+buy_exit_level = input.int(70, "Buy Exit Level", minval=1, maxval=100)
+sell_exit_level = input.int(30, "Sell Exit Level", minval=1, maxval=100)
+
+// === RSI Source ===
+rsi_source = close
+
+// === Calculate RSI across both timeframes ===
+rsi_higher = request.security(syminfo.tickerid, rsi1_tf, ta.rsi(rsi_source, rsi1_len))
+rsi_lower = request.security(syminfo.tickerid, rsi2_tf, ta.rsi(rsi_source, rsi2_len))
+
+// === Entry Conditions ===
+can_long = rsi_higher > 50
+can_short = rsi_higher < 50
+long_signal = can_long and ta.crossover(rsi_lower, buy_entry_level)
+short_signal = can_short and ta.crossunder(rsi_lower, sell_entry_level)
+
+// === Exit Conditions ===
+exit_long = ta.crossunder(rsi_lower, buy_exit_level)
+exit_short = ta.crossover(rsi_lower, sell_exit_level)
+
+// === Position Entries ===
+if (long_signal)
+    strategy.entry("Buy RSI", strategy.long)
+
+if (short_signal)
+    strategy.entry("Sell RSI", strategy.short)
+
+// === Position Exits ===
+if (exit_long)
+    strategy.close("Buy RSI")
+
+if (exit_short)
+    strategy.close("Sell RSI")

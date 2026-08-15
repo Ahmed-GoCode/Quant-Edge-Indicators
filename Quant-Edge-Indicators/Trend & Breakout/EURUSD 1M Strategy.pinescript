@@ -1,0 +1,40 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("EUR/USD EMA9-21 + RSI Scalping Strategy [1M]", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// === Parameters ===
+emaFastLen = input.int(9, title="Fast EMA Period")
+emaSlowLen = input.int(21, title="Slow EMA Period")
+rsiLen = input.int(14, title="RSI Period")
+rsiUpper = input.int(70, title="RSI Overbought")
+rsiLower = input.int(30, title="RSI Oversold")
+takeProfitPips = input.int(10, title="Take Profit (pips)")
+stopLossPips = input.int(5, title="Stop Loss (pips)")
+
+// === Calculations ===
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+rsi = ta.rsi(close, rsiLen)
+
+// === Entry Conditions ===
+longCond = ta.crossover(emaFast, emaSlow) and rsi > 50 and rsi < rsiUpper
+shortCond = ta.crossunder(emaFast, emaSlow) and rsi < 50 and rsi > rsiLower
+
+// === Pip to Price Conversion ===
+pip = 0.0001  // EUR/USD 5-decimal standard pip
+tpPoints = takeProfitPips * pip
+slPoints = stopLossPips * pip
+
+// === Entries and Exits ===
+if (longCond)
+    strategy.entry("Buy", strategy.long)
+    strategy.exit("Exit Buy", from_entry="Buy", limit=close + tpPoints, stop=close - slPoints)
+
+if (shortCond)
+    strategy.entry("Sell", strategy.short)
+    strategy.exit("Exit Sell", from_entry="Sell", limit=close - tpPoints, stop=close + slPoints)
+
+// === Visualization ===
+plot(emaFast, title="EMA 9", color=color.blue)
+plot(emaSlow, title="EMA 21", color=color.orange)

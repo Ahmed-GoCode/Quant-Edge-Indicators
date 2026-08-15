@@ -1,0 +1,33 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("Larry Connors 2-Period RSI Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// === INPUTS ===
+rsiPeriod = input.int(2, title="RSI Period", minval=1)
+rsiEntryThreshold = input.int(10, title="RSI Entry Threshold (Below)", minval=1)
+rsiExitThreshold = input.int(70, title="RSI Exit Threshold (Above)", minval=1)
+smaPeriod = input.int(200, title="Trend SMA Period", minval=1)
+maxBarsHold = input.int(3, title="Max Bars in Trade", minval=1)
+
+// === INDICATORS ===
+rsi = ta.rsi(close, rsiPeriod)
+sma200 = ta.sma(close, smaPeriod)
+
+// === TIME VARIABLES ===
+var int barSinceEntry = na
+inPosition = strategy.opentrades > 0
+
+// === LONG ENTRY CONDITIONS ===
+longCondition = close > sma200 and rsi < rsiEntryThreshold and not inPosition
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+    barSinceEntry := 0  // Reset bar counter
+
+// === EXIT CONDITIONS ===
+barSinceEntry := inPosition ? barSinceEntry + 1 : na
+exitByRSI = rsi > rsiExitThreshold
+exitByTime = barSinceEntry >= maxBarsHold
+
+if (inPosition and (exitByRSI or exitByTime))
+    strategy.close("Long")

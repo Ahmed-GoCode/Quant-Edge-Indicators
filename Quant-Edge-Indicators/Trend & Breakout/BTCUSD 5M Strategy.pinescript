@@ -1,0 +1,71 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("BTCUSD 5M Optimized Strategy", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+// === INPUTS ===
+emaLen = input.int(200, title="EMA Length")
+macdFast = input.int(12, title="MACD Fast")
+macdSólow = input.int(26, title="MACD Sólow")
+macdSignal = input.int(9, title="MACD Signal")
+rsiLen = input.int(14, title="RSI Length")
+rsiOverbought = input.int(70, title="RSI Overbought")
+rsiOversold = input.int(30, title="RSI Oversold")
+atrLen = input.int(14, title="ATR Length")
+atrMult = input.float(1.5, title="ATR Stop Loss Multiplier")
+tpMult = input.float(2.0, title="Take Profit Multiplier")
+adxLen = input.int(14, title="ADX Length")
+adxThresh = input.float(20, title="ADX Threshold")
+trailATRMult = input.float(1.0, title="Trailing Stop ATR Multiplier")
+volMultiplier = input.float(1.0, title="Volume Multiplier for Entry")
+breakoutLookback = input.int(10, title="Breakout Lookback Bars")
+// === TIME FILTER ===
+useTimeFilter = input.bool(true, title="Use Time Filter")
+startHour = input.int(8, title="Start Hour")
+endHour = input.int(20, title="End Hour")
+isInTime = not useTimeFilter or (hour >= startHour and hour < endHour)
+// === INDICATORS ===
+ema = ta.ema(close, emaLen)
+[macdLine, signalLine, _] = ta.macd(close, macdFast, macdSólow, macdSignal)
+rsi = ta.rsi(close, rsiLen)
+atr = ta.atr(atrLen)
+// Manual ADX Calculation
+upMove = high - high[1]
+downMove = low[1] - low
+plusDM = (upMove > downMove and upMove > 0) ? upMove : 0
+minusDM = (downMove > upMove and downMove > 0) ? downMove : 0
+trur = ta.rma(ta.tr(true), adxLen)
+plusDI = 100 * ta.rma(plusDM, adxLen) / trur
+minusDI = 100 * ta.rma(minusDM, adxLen) / trur
+dx = 100 * math.abs(plusDI - minusDI) / (plusDI + minusDI)
+adx = ta.rma(dx, adxLen)
+avgVol = ta.sma(volume, 20)
+// === CONDITIONS ===
+trendUp = close > ema
+trendDown = close < ema
+macdBull = macdLine > signalLine
+macdBear = macdLine < signalLine
+rsiLong = rsi < rsiOverbought
+rsiShort = rsi > rsiOversold
+adxStrong = adx > adxThresh
+volOk = volume > avgVol * volMultiplier
+breakoutLong = close > ta.highest(close[1], breakoutLookback)
+breakoutShort = close < ta.lowest(close[1], breakoutLookback)
+longCondition = trendUp and macdBull and rsiLong and adxStrong and volOk and breakoutLong and isInTime
+shortCondition = trendDown and macdBear and rsiShort and adxStrong and volOk and breakoutShort and isInTime
+// === ENTRY ===
+if (longCondition)
+    strategy.entry("Long", strategy.long)
+if (shortCondition)
+    strategy.entry("Short", strategy.short)
+// === ATR-based TARGETS ===
+longSL = close - atr * atrMult
+longTP = close + atr * atrMult * tpMult
+shortSL = close + atr * atrMult
+shortTP = close - atr * atrMult * tpMult
+// === TRAILING STOP ===
+trailingLong = atr * trailATRMult
+trailingShort = atr * trailATRMult
+strategy.exit("Long Exit", from_entry="Long", stop=longSL, limit=longTP, trail_points=trailingLong, trail_offset=trailingLong)
+strategy.exit("Short Exit", from_entry="Short", stop=shortSL, limit=shortTP, trail_points=trailingShort, trail_offset=trailingShort)
+// === PLOTS ===
+plot(ema, color=color.orange, title="200 EMA")

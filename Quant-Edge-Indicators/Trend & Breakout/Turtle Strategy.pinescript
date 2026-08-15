@@ -1,0 +1,83 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+strategy("Donchian Strategy - Dynamic TP, Fixed SL, 1% Risk, Daily Target", overlay=true, default_qty_type=strategy.cash, default_qty_value=100000)
+
+// === INPUTS ===
+length = input.int(20, title="Donchian Channel Length")
+riskPercent = input.float(1.0, title="Risk per Trade (%)", step=0.1)
+daily_target = input.float(500, title="Daily Profit Target ($)", step=50)
+
+// === DONCHIAN CHANNELS ===
+donchian_high = ta.highest(high, length)
+donchian_low = ta.lowest(low, length)
+donchian_mid = (donchian_high + donchian_low) / 2
+plot(donchian_high, color=color.green, title="Upper Channel")
+plot(donchian_low, color=color.red, title="Lower Channel")
+plot(donchian_mid, color=color.gray, title="Middle Channel")
+
+// === CHANNEL TOUCH DETECTION ===
+var bool touched_upper = false
+var bool touched_lower = false
+
+if high >= donchian_high
+    touched_upper := true
+
+if low <= donchian_low
+    touched_lower := true
+
+// === RISK CALCULATION ===
+capital = strategy.equity
+risk_amount = capital * (riskPercent / 100)
+
+// === FIXED SL ===
+var float entry_price = na
+var float stop_price = na
+
+// === NEW DAY DETECTION ===
+current_session = year(time) * 10000 + month(time) * 100 + dayofmonth(time)
+var int saved_session = na
+var float daily_profit = 0.0
+
+if na(saved_session) or current_session != saved_session
+    saved_session := current_session
+    daily_profit := 0.0
+
+// === UPDATE ACCUMULATED PROFIT ===
+daily_profit += strategy.netprofit - strategy.netprofit[1]
+
+// === CAN TRADE TODAY? ===
+can_trade_today = daily_profit < daily_target
+
+// === BUY ===
+long_condition = touched_upper and close <= donchian_mid
+long_sl = donchian_low
+long_entry = close
+long_risk_per_unit = math.abs(long_entry - long_sl)
+long_qty = long_risk_per_unit > 0 ? risk_amount / long_risk_per_unit : 0
+
+if long_condition and strategy.position_size == 0 and can_trade_today
+    entry_price := long_entry
+    stop_price := long_sl
+    strategy.entry("Buy", strategy.long, qty=long_qty)
+    touched_upper := false
+
+// === SELL ===
+short_condition = touched_lower and close >= donchian_mid
+short_sl = donchian_high
+short_entry = close
+short_risk_per_unit = math.abs(short_entry - short_sl)
+short_qty = short_risk_per_unit > 0 ? risk_amount / short_risk_per_unit : 0
+
+if short_condition and strategy.position_size == 0 and can_trade_today
+    entry_price := short_entry
+    stop_price := short_sl
+    strategy.entry("Sell", strategy.short, qty=short_qty)
+    touched_lower := false
+
+// === Dynamic TP, Fixed SL ===
+if strategy.position_size > 0
+    strategy.exit("TP Buy", from_entry="Buy", stop=stop_price, limit=donchian_high)
+
+if strategy.position_size < 0
+    strategy.exit("TP Sell", from_entry="Sell", stop=stop_price, limit=donchian_low)

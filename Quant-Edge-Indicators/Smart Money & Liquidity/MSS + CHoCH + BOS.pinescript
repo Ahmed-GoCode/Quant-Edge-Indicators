@@ -1,0 +1,263 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+indicator("Market Structure CHoCH/BOS LEO — Ahmed Edition", overlay=true, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// ====================== SETTINGS ======================
+length      = input.int(5, minval=3, title="Fractal Length (odd number recommended)")
+numDays     = input.int(7, "FVG lookback days")
+showBull    = input.bool(true, "Show Bullish Structures", inline="bull", group="Style")
+bullColor   = input.color(#089981, "", inline="bull", group="Style")
+showBear    = input.bool(true, "Show Bearish Structures", inline="bear", group="Style")
+bearColor   = input.color(#f23645, "", inline="bear", group="Style")
+showSupport = input.bool(false, "Show Support Levels", inline="s", group="Style")
+supColor    = input.color(#089981, "", inline="s", group="Style")
+showRes     = input.bool(false, "Show Resistance Levels", inline="r", group="Style")
+resColor    = input.color(#f23645, "", inline="r", group="Style")
+
+// Dashboard settings
+showDash    = input.bool(false, "Show Dashboard", group="Dashboard")
+dashLoc     = input.string("Top Right", "Dashboard Location", options=["Top Right", "Bottom Right", "Bottom Left"], group="Dashboard")
+dashTextSz  = input.string("Small", "Dashboard Text Size", options=["Tiny","Small","Normal"], group="Dashboard")
+
+// FVG / CE settings
+showUP      = input.bool(true, "'UP' FVGs")
+colUp       = input.color(color.new(color.blue, 86))
+showDN      = input.bool(true, "'DOWN' FVGs")
+colDn       = input.color(color.new(color.orange, 86))
+showCE      = input.bool(true, "Show CE lines")
+ceCol       = input.color(color.new(color.black, 1))
+ceStyle     = input.string(line.style_dotted, "CE style", options=[line.style_dotted, line.style_solid, line.style_dashed])
+deleteFilledBoxes = input.bool(true, "Delete filled boxes & lines")
+useCEcond   = input.bool(true, "Use CE threshold (vs full-fill)", group="conditions/alerts")
+
+// ATR trailing stop settings
+atrMult     = input.float(2.0, "ATR multiplier (sensitivity)", step=0.1)
+atrPeriod   = input.int(1, "ATR period")
+useHeikin   = input.bool(false, "Use Heikin-Ashi source for ATR/trailing")
+
+// ====================== HELPERS & TYPES ======================
+type fractal
+    float value
+    int loc
+    bool crossed
+
+_day = 24 * 3600 * 1000
+lookback_ms = numDays * _day
+
+p = int(length / 2)
+n = bar_index
+
+// dashboard helpers
+table_pos = dashLoc == "Bottom Left" ? position.bottom_left : dashLoc == "Top Right" ? position.top_right : position.bottom_right
+table_size = dashTextSz == "Tiny" ? size.tiny : dashTextSz == "Small" ? size.small : size.normal
+
+// ====================== FRACTAL DETECTION (market structure) ======================
+dh = math.sum(math.sign(high - high[1]), p)
+dl = math.sum(math.sign(low - low[1]), p)
+
+isBullFractal = dh == -p and dh[p] == p and high[p] == ta.highest(length)
+isBearFractal = dl == p and dl[p] == -p and low[p] == ta.lowest(length)
+
+var int bullFractalCount = 0
+var int bearFractalCount = 0
+
+// containers for latest fractals
+var fractal lastBull = fractal.new(na, na, false)
+var fractal lastBear = fractal.new(na, na, false)
+
+// support/resistance lines tracking
+var line supLine = na
+var line resLine = na
+var bool brokenSup = false
+var bool brokenRes = false
+var int structState = 0  // 1 = last was bullish MS, -1 = last was bearish MS
+
+// ====================== ON NEW FRACTAL: SET DATA ======================
+if isBullFractal
+    lastBull.value := high[p]
+    lastBull.loc := n - p
+    lastBull.crossed := false
+    bullFractalCount += 1
+
+if isBearFractal
+    lastBear.value := low[p]
+    lastBear.loc := n - p
+    lastBear.crossed := false
+    bearFractalCount += 1
+
+// ====================== BULLISH STRUCTURE (CHOCH / BOS) ======================
+if not na(lastBull.value)
+    // detect breakout above the fractal (price crossing the fractal high)
+    if ta.crossover(close, lastBull.value) and not lastBull.crossed
+        // draw horizontal to mark breakout
+        if showBull
+            line.new(lastBull.loc, lastBull.value, n, lastBull.value, color=bullColor)
+        // label (ChoCH if previous structure opposite, else BOS)
+        lblText = structState == -1 ? "ChoCH" : "BOS"
+        label.new(int(math.avg(n, lastBull.loc)), lastBull.value, lblText,
+          color=color(na), textcolor=showBull ? bullColor : na, style=label.style_label_down, size=size.tiny)
+        // compute nearest support since fractal
+        minLow = low[1]
+        k = 2
+        for i = 2 to (n - lastBull.loc) - 1
+            minLow := math.min(low[i], minLow)
+            k := low[i] == minLow ? i : k
+        if showSupport
+            supLine := line.new(n - k, minLow, n, minLow, color=supColor, style=line.style_dashed)
+            brokenSup := false
+        lastBull.crossed := true
+        structState := 1
+
+// keep updating support right-end and detect break
+if showSupport and not brokenSup and not na(supLine)
+    supLine.set_x2(n)
+    if close < supLine.get_y2()
+        brokenSup := true
+
+// ====================== BEARISH STRUCTURE (CHOCH / BOS) ======================
+if not na(lastBear.value)
+    if ta.crossunder(close, lastBear.value) and not lastBear.crossed
+        if showBear
+            line.new(lastBear.loc, lastBear.value, n, lastBear.value, color=bearColor)
+        lblText2 = structState == 1 ? "ChoCH" : "BOS"
+        label.new(int(math.avg(n, lastBear.loc)), lastBear.value, lblText2,
+          color=color(na), textcolor=showBear ? bearColor : na, style=label.style_label_up, size=size.tiny)
+        // compute nearest resistance since fractal
+        maxHigh = high[1]
+        k2 = 2
+        for i = 2 to (n - lastBear.loc) - 1
+            maxHigh := math.max(high[i], maxHigh)
+            k2 := high[i] == maxHigh ? i : k2
+        if showRes
+            resLine := line.new(n - k2, maxHigh, n, maxHigh, color=resColor, style=line.style_dashed)
+            brokenRes := false
+        lastBear.crossed := true
+        structState := -1
+
+// update resistance and detect break
+if showRes and not brokenRes and not na(resLine)
+    resLine.set_x2(n)
+    if close > resLine.get_y2()
+        brokenRes := true
+
+// ====================== PLOTS FOR BREAKOUTS ======================
+plot(brokenRes and not brokenRes[1] ? low : na, title="Resistance Breakout", color=supColor, linewidth=2, style=plot.style_circles)
+plot(brokenSup and not brokenSup[1] ? high : na, title="Support Breakout", color=bearColor, linewidth=2, style=plot.style_circles)
+
+// ====================== DASHBOARD ======================
+var table dash = table.new(table_pos, 2, 3, bgcolor=#1e222d, border_color=#373a46, border_width=1, frame_color=#373a46, frame_width=1)
+if showDash
+    if barstate.isfirst
+        table.cell(dash, 0, 0, "Structure → Fractal %", text_color=color.white, text_size=table_size)
+        table.merge_cells(dash, 0, 0, 1, 0)
+        table.cell(dash, 0, 1, "Bullish", text_color=bullColor, text_size=table_size)
+        table.cell(dash, 1, 1, "Bearish", text_color=bearColor, text_size=table_size)
+    if barstate.islast
+        bPercent = bullFractalCount == 0 ? 0.0 : (bullFractalCount / (bullFractalCount + bearFractalCount))
+        brPercent = bearFractalCount == 0 ? 0.0 : (bearFractalCount / (bullFractalCount + bearFractalCount))
+        table.cell(dash, 0, 2, str.tostring(bPercent, format.percent), text_color=bullColor, text_size=table_size)
+        table.cell(dash, 1, 2, str.tostring(brPercent, format.percent), text_color=bearColor, text_size=table_size)
+
+// ====================== FVG & CE (Fair Value Gaps / Commitment of Energy) ======================
+var array<box> upBoxes = array.new<box>()
+var array<line> upLines = array.new<line>()
+var array<box> dnBoxes = array.new<box>()
+var array<line> dnLines = array.new<line>()
+var array<int> filledCounts = array.new<int>()
+var array<int> iOFEDCounts = array.new<int>()
+
+dnCE = high[1] + (low[3] - high[1]) / 2
+upCE = low[1] - (low[1] - high[3]) / 2
+
+if low[3] > high[1] and time > timenow - lookback_ms and showDN
+    array.push(dnBoxes, box.new(bar_index - 3, low[3], bar_index, high[1], bgcolor=colDn, border_color=color.new(color.white,100)))
+    array.push(dnLines, line.new(bar_index - 3, dnCE, bar_index, dnCE, color=showCE ? ceCol : color.new(color.white, 100), style=str.tointeger(ceStyle)))
+if high[3] < low[1] and time > timenow - lookback_ms and showUP
+    array.push(upBoxes, box.new(bar_index - 3, low[1], bar_index, high[3], bgcolor=colUp, border_color=color.new(color.white,100)))
+    array.push(upLines, line.new(bar_index - 3, upCE, bar_index, upCE, color=showCE ? ceCol : color.new(color.white,100), style=str.tointeger(ceStyle)))
+
+// lifecycle & removal: extend and remove if price passes
+extendAndRemove(array<box> boxes, array<line> lines, simple bool isBull, int maxSize) =>
+    if array.size(boxes) > 0
+        for i = array.size(boxes) - 1 to 0
+            bx = array.get(boxes, i)
+            ln = array.get(lines, i)
+            box.set_right(bx, bar_index)
+            line.set_x2(ln, bar_index)
+            priceThresh = useCEcond ? line.get_price(ln, bar_index) : (isBull ? box.get_top(bx) : box.get_bottom(bx))
+            priceIOFED = isBull ? box.get_bottom(bx) : box.get_top(bx)
+            m = isBull ? 1 : -1
+            hiLo = isBull ? high : low
+            if hiLo * m > priceThresh * m
+                // mark removed by pushing counters
+                array.push(filledCounts, isBull ? 1 : -1)
+                if deleteFilledBoxes
+                    box.set_bgcolor(bx, color.new(color.white, 100))
+                    line.set_color(ln, color.new(color.white, 100))
+                // removal from arrays (do not delete TradingView box/line to keep backward-compatibility)
+                array.remove(boxes, i)
+                array.remove(lines, i)
+            if hiLo * m > priceIOFED * m
+                array.push(iOFEDCounts, isBull ? 1 : -1)
+    if array.size(boxes) > maxSize
+        // delete oldest
+        oldestBox = array.shift(boxes)
+        oldestLine = array.shift(lines)
+        box.delete(oldestBox)
+        line.delete(oldestLine)
+
+extendAndRemove(dnBoxes, dnLines, true, 12)
+extendAndRemove(upBoxes, upLines, false, 12)
+
+// threshold booleans
+upThreshold = array.sum(filledCounts) > nz(array.sum(filledCounts)[1])
+dnThreshold = array.sum(filledCounts) < nz(array.sum(filledCounts)[1])
+upIOFED = array.sum(iOFEDCounts) > nz(array.sum(iOFEDCounts)[1])
+dnIOFED = array.sum(iOFEDCounts) < nz(array.sum(iOFEDCounts)[1])
+
+alertcondition(upThreshold, title="ABOVE threshold of latest active Up FVG", message="Price has crossed threshold of latest active Up FVG")
+alertcondition(dnThreshold, title="BELOW threshold of latest active Down FVG", message="Price has crossed threshold of latest active Down FVG")
+alertcondition(upIOFED, title="IOFED into latest active Up FVG", message="Price has entered latest active UP FVG")
+alertcondition(dnIOFED, title="IOFED into latest active Down FVG", message="Price has entered latest active Down FVG")
+alertcondition(low[3] > high[1], title="Down FVG (confirmed)", message="Down FVG has formed (confirmed)")
+alertcondition(high[3] < low[1], title="Up FVG (confirmed)", message="Up FVG has formed (confirmed)")
+alertcondition(low[2] > high, title="Down FVG (UN-confirmed)", message="Down FVG (un-confirmed)")
+alertcondition(high[2] < low, title="Up FVG (UN-confirmed)", message="Up FVG (un-confirmed)")
+
+// ====================== ATR TRAILING STOP (Entry / Exit signals) ======================
+src = useHeikin ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead=barmerge.lookahead_off) : close
+xATR = ta.atr(atrPeriod)
+nLoss = atrMult * xATR
+
+var float xATRTS = na
+prev_xATRTS = nz(xATRTS[1], src)
+iff1 = src > prev_xATRTS ? src - nLoss : src + nLoss
+iff2 = src < prev_xATRTS and src[1] < prev_xATRTS ? math.min(prev_xATRTS, src + nLoss) : iff1
+xATRTS := src > prev_xATRTS and src[1] > prev_xATRTS ? math.max(prev_xATRTS, src - nLoss) : iff2
+
+var int pos = 0
+pos := src[1] > nz(xATRTS[1], 0) and src < nz(xATRTS[1], 0) ? -1 : nz(pos[1], 0)
+pos := src[1] < nz(xATRTS[1], 0) and src > nz(xATRTS[1], 0) ? 1 : pos
+
+xColor = pos == -1 ? color.red : pos == 1 ? color.green : color.blue
+ema1 = ta.ema(src, 1)
+above = ta.crossover(ema1, xATRTS)
+below = ta.crossover(xATRTS, ema1)
+
+buySignal = src > xATRTS and above
+sellSignal = src < xATRTS and below
+
+plotshape(buySignal, title="Buy", text="Buy", style=shape.labelup, location=location.belowbar, color=color.new(color.green,0), textcolor=color.white, size=size.tiny)
+plotshape(sellSignal, title="Sell", text="Sell", style=shape.labeldown, location=location.abovebar, color=color.new(color.red,0), textcolor=color.white, size=size.tiny)
+barcolor(buySignal ? color.green : sellSignal ? color.red : na)
+
+alertcondition(buySignal, title="UT Long", message="UT Long")
+alertcondition(sellSignal, title="UT Short", message="UT Short")
+
+// ====================== CLEANUP NOTES ======================
+// - This script preserves original behavior but structures logic into clear blocks.
+// - FVG & CE lifecycles use arrays to manage boxes/lines and counters for alerts.
+// - The ARTRailingStop logic is left equivalent to the original but refactored for clarity.
+
+// End of Ahmed Edition

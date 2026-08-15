@@ -1,0 +1,111 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+indicator("RSI Divergence [Ahmed Edition]", shorttitle="RSI Div A", overlay=false, max_labels_count=500)
+
+// ================== INPUTS ==================
+len     = input.int(14, minval=1, title="RSI Length")
+ob      = input.int(70, title="Overbought", minval=0, maxval=100)
+os      = input.int(30, title="Oversold", minval=0, maxval=100)
+omid    = input.int(50, title="Midline Value", minval=0, maxval=100)
+hideMid = input.bool(false, title="Hide Midline")
+
+lookback = input.int(90, title="Lookback Period (bars)", minval=1)
+showPiv  = input.bool(true, title="Show Pivots?")
+shortLbl = input.bool(false, title="Short Labels?")
+hideLbls = input.bool(false, title="Hide Labels & Use Background")
+
+// ================== RSI ==================
+rsi = ta.rsi(close, len)
+
+// Levels
+hOB   = hline(ob, "Overbought", color=color.red)
+hOS   = hline(os, "Oversold", color=color.green)
+hMid  = hline(omid, "Midline", color=color.new(color.gray, hideMid ? 100 : 70))
+
+plot(rsi, color=(rsi > ob or rsi < os) ? color.red : color.black)
+fill(hMid, hOB, color=color.new(color.lime, 92))
+fill(hOS, hMid, color=color.new(color.red, 92))
+
+// ================== PIVOTS ==================
+highestBar = ta.highestbars(rsi, lookback)
+lowestBar  = ta.lowestbars(rsi, lookback)
+
+var float maxClose = na
+var float maxRSI   = na
+var float minClose = na
+var float minRSI   = na
+
+// Update max/min
+if highestBar == 0
+    maxClose := close
+    maxRSI   := rsi
+else
+    maxClose := nz(maxClose[1], close)
+    maxRSI   := nz(maxRSI[1], rsi)
+
+if lowestBar == 0
+    minClose := close
+    minRSI   := rsi
+else
+    minClose := nz(minClose[1], close)
+    minRSI   := nz(minRSI[1], rsi)
+
+// Pivot conditions
+pivHigh = (maxRSI == maxRSI[2] and maxRSI[2] != maxRSI[3])
+pivLow  = (minRSI == minRSI[2] and minRSI[2] != minRSI[3])
+
+// ================== DIVERGENCES ==================
+bearDiv = close[1] > close[2] and rsi[1] < maxRSI and rsi <= rsi[1]
+bullDiv = close[1] < close[2] and rsi[1] > minRSI and rsi >= rsi[1]
+
+// ================== ALERTS ==================
+alertcondition(bearDiv, title="Bearish Divergence", message="Bear Div")
+alertcondition(bullDiv, title="Bullish Divergence", message="Bull Div")
+alertcondition(pivHigh, title="Pivot High", message="Pivot High")
+alertcondition(pivLow, title="Pivot Low", message="Pivot Low")
+
+// Extra Alerts (Enter/Exit)
+bearExit  = ta.crossunder(rsi, os)   // RSI drops below oversold
+bullExit  = ta.crossover(rsi, ob)    // RSI breaks above overbought
+bearEnter = ta.crossunder(rsi, ob)   // RSI falls below OB
+bullEnter = ta.crossover(rsi, os)    // RSI rises above OS
+
+alertcondition(bearExit,  title="Bear Exit",  message="Bear Exit")
+alertcondition(bullExit,  title="Bull Exit",  message="Bull Exit")
+alertcondition(bearEnter, title="Bear Enter", message="Bear Enter")
+alertcondition(bullEnter, title="Bull Enter", message="Bull Enter")
+
+// ================== LABELS ==================
+if bearDiv and not hideLbls
+    label.new(bar_index - 1, rsi[1] + 1,
+        shortLbl ? "▼" : "BEAR",
+        color=color.red, textcolor=color.white,
+        style=label.style_label_down, yloc=yloc.price, size=size.small)
+
+if bullDiv and not hideLbls
+    label.new(bar_index - 1, rsi[1] - 1,
+        shortLbl ? "▲" : "BULL",
+        color=color.green, textcolor=color.white,
+        style=label.style_label_up, yloc=yloc.price, size=size.small)
+
+if showPiv and pivHigh and not hideLbls
+    label.new(bar_index - 2, maxRSI + 1,
+        shortLbl ? "P" : "PIVOT",
+        color=color.blue, textcolor=color.white,
+        style=label.style_label_down, yloc=yloc.price, size=size.tiny)
+
+if showPiv and pivLow and not hideLbls
+    label.new(bar_index - 2, minRSI - 1,
+        shortLbl ? "P" : "PIVOT",
+        color=color.blue, textcolor=color.white,
+        style=label.style_label_up, yloc=yloc.price, size=size.tiny)
+
+// ================== BACKGROUND COLORING ==================
+bgcolor(
+     hideLbls ?
+     bearDiv ? color.new(color.red, 85) :
+     bullDiv ? color.new(color.green, 85) :
+     (showPiv and (pivHigh or pivLow) ? color.new(color.blue, 85) : na)
+     : na, transp=90
+)

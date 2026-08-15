@@ -1,0 +1,88 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmed - Quant-Edge Indicators
+//@version=6
+indicator("Candle Counter + MA + RSI + Mode", overlay=true)
+
+// Configurable Parameters
+candle_count   = input.int(20, title="Number of Candles to Analyze")
+trend_mode     = input.string(title="Trend Mode Definition", defval="Candles and Range", options=["Candles Only", "Range Only", "Candles and Range"])
+use_ma         = input.bool(true, title="Use Moving Average Filter")
+use_rsi        = input.bool(true, title="Use RSI Filter")
+ma_len         = input.int(50, title="Moving Average Period")
+rsi_len        = input.int(14, title="RSI Period")
+overbought     = input.int(70, title="RSI Overbought Level")
+oversold       = input.int(30, title="RSI Oversold Level")
+panel_pos      = input.string(title="Panel Position", defval="Top Right", options=["Top Left", "Top Right", "Bottom Left", "Bottom Right"])
+
+// Moving Average and RSI Calculation
+ma        = ta.sma(close, ma_len)
+rsi_val   = ta.rsi(close, rsi_len)
+
+// Counter Initialization
+var int bull_candles_count = 0
+var int bear_candles_count = 0
+var float bull_range_sum   = 0.0
+var float bear_range_sum   = 0.0
+
+if barstate.isconfirmed and bar_index >= candle_count
+    bull_candles_count := 0
+    bear_candles_count := 0
+    bull_range_sum     := 0.0
+    bear_range_sum     := 0.0
+    for i = 1 to candle_count
+        if not na(close[i])
+            if close[i] > open[i]
+                bull_candles_count += 1
+                bull_range_sum     += high[i] - low[i]
+            else if close[i] < open[i]
+                bear_candles_count += 1
+                bear_range_sum     += high[i] - low[i]
+
+// Basic Trend Determination Based on Chosen Mode
+bull_trend_candles = bull_candles_count > bear_candles_count
+bear_trend_candles = bear_candles_count > bull_candles_count
+bull_trend_range   = bull_range_sum > bear_range_sum
+bear_trend_range   = bear_range_sum > bull_range_sum
+
+bull_trend = (trend_mode == "Candles Only" and bull_trend_candles) or (trend_mode == "Range Only" and bull_trend_range) or (trend_mode == "Candles and Range" and bull_trend_candles and bull_trend_range)
+bear_trend = (trend_mode == "Candles Only" and bear_trend_candles) or (trend_mode == "Range Only" and bear_trend_range) or (trend_mode == "Candles and Range" and bear_trend_candles and bear_trend_range)
+
+// Additional Validations
+ma_rising  = ma > ma[1]
+ma_falling = ma < ma[1]
+rsi_extreme = (rsi_val > overbought) or (rsi_val < oversold)
+
+valid_ma_bull = use_ma ? (close > ma and ma_rising) : true
+valid_ma_bear = use_ma ? (close < ma and ma_falling) : true
+valid_rsi     = use_rsi ? not rsi_extreme : true
+
+// Final Validated Trend Condition
+bull_trend_valid = bull_trend and valid_ma_bull and valid_rsi
+bear_trend_valid = bear_trend and valid_ma_bear and valid_rsi
+
+// Chart Background Highlight
+bgcolor(bull_trend_valid ? color.new(color.green, 85) : bear_trend_valid ? color.new(color.red, 85) : na)
+
+// Plot Moving Average
+plot(use_ma ? ma : na, title="Moving Average", color=color.orange)
+
+// Display Signal Labels
+plotshape(bull_trend_valid, title="Bullish Trend", style=shape.labelup, location=location.belowbar, color=color.green, size=size.small)
+plotshape(bear_trend_valid, title="Bearish Trend", style=shape.labeldown, location=location.abovebar, color=color.red, size=size.small)
+
+// Create Info Panel
+table_pos = panel_pos == "Top Left" ? position.top_left : panel_pos == "Top Right" ? position.top_right : panel_pos == "Bottom Left" ? position.bottom_left : position.bottom_right
+var table panel = table.new(position=table_pos, columns=1, rows=10, bgcolor=color.black, frame_color=color.gray, frame_width=1)
+
+if barstate.islastconfirmedhistory
+    table.clear(panel, start_column=0, start_row=0)
+    table.cell(panel, 0, 0, text="Mode: " + trend_mode, text_color=color.white)
+    table.cell(panel, 0, 1, text="MA Active: " + (use_ma ? "Yes" : "No"), text_color=color.white)
+    table.cell(panel, 0, 2, text="RSI Active: " + (use_rsi ? "Yes" : "No"), text_color=color.white)
+    table.cell(panel, 0, 3, text="Bullish Candles: " + str.tostring(bull_candles_count), text_color=color.lime)
+    table.cell(panel, 0, 4, text="Bearish Candles: " + str.tostring(bear_candles_count), text_color=color.red)
+    table.cell(panel, 0, 5, text="Bullish Range: " + str.tostring(bull_range_sum, "#.##"), text_color=color.lime)
+    table.cell(panel, 0, 6, text="Bearish Range: " + str.tostring(bear_range_sum, "#.##"), text_color=color.red)
+    table.cell(panel, 0, 7, text="RSI Value: " + str.tostring(rsi_val, "#.##"), text_color=color.yellow)
+    table.cell(panel, 0, 8, text="Base Trend: " + (bull_trend ? "BULLISH" : (bear_trend ? "BEARISH" : "UNDEFINED")), text_color=color.white)
+    table.cell(panel, 0, 9, text="Validated Trend: " + (bull_trend_valid ? "BULLISH" : (bear_trend_valid ? "BEARISH" : "NOT VALIDATED")), text_color=color.white, bgcolor=bull_trend_valid ? color.green : (bear_trend_valid ? color.red : color.gray))
