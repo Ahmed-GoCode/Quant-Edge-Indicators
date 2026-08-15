@@ -34,11 +34,7 @@
 
 ## 🎬 Watch First — Add Any Script in Under 60 Seconds
 
-<div align="center">
-  <a href="https://youtu.be/hFZWMO2OocI">
-    <img src="https://img.youtube.com/vi/hFZWMO2OocI/maxresdefault.jpg" alt="How to Add Scripts" width="800" />
-  </a>
-</div>
+[![Watch the tutorial](https://img.youtube.com/vi/hFZWMO2OocI/maxresdefault.jpg)](https://youtu.be/hFZWMO2OocI)
 
 > **Instructions:** Open TradingView → Pine Editor → Paste any `.pinescript` code → Click **Add to Chart** ✅
 
